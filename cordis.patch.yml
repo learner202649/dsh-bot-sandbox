@@ -1,0 +1,56 @@
+# dsh-bot-sandbox — profile bundle patch.
+#
+# A bundle patch composes over an empty entry list, so both rows are `insert`s.
+# They live in a bundle (not the profile's cordis.patch.yml) because bot plugins
+# rewrite that profile file with js-yaml when saving credentials/settings, and
+# inline insert blocks without a top-level `id` would be dropped.
+#
+# 1) bot-sandbox-chat-only: an Agent preset with no tool plugins at all.
+# 2) bot-sandbox: the host guard. It auto-pins each configured bot plugin's cwd
+#    under <DSH_HOME>/untrusted-bots and denies every tool/approval whose session
+#    cwd is inside that root.
+- insert:
+    - id: preset-bot-sandbox-chat-only
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: bot-sandbox-chat-only
+        name: 机器人沙箱（仅对话）
+        description: 只有对话与历史压缩，不挂载文件、命令、网络、外发或子 agent 工具
+        order: 90
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是一个只负责聊天的助手。你没有文件、命令、网络或任何其他工具可用；不要声称自己能读取、执行、发送或保存任何东西。
+              complete: true
+              includeRuntimeContext: false
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: bot-sandbox
+      name: 'dsh-bot-sandbox'
+      config:
+        # true: on first mount, write the pinned cwd/preset into the profile
+        # cordis.patch.yml (backup first), then let HMR reload the bot plugin.
+        # Set false if you prefer to configure everything by hand.
+        autoApply: true
+        # Installed bot plugins to sandbox. Add more entries later; each one must
+        # expose a cwd config key on the given loader row id.
+        targets:
+          - package: '@tencent-connect/dsh-qqbot'
+            rowId: im-qqbot
+            dir: qqbot
+            preset: bot-sandbox-chat-only
+        # Optional: allow a few read-only tools inside the sandbox. Empty = all denied.
+        allowTools: []
+        # Optional: extra cwds to treat as remote (in addition to the auto root).
+        restrictedCwds: []
+        # Optional: override the audit file (default <DSH_HOME>/security-watch/bot-sandbox.jsonl).
+        auditLog: ''

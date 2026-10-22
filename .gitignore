@@ -1,0 +1,5 @@
+# local-only dependency copy used for running the test suite in this workspace
+node_modules/
+.tmp-*
+*.tgz
+*.log
