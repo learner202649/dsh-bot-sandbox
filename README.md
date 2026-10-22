@@ -168,6 +168,51 @@ DSH 的会话创建 API 没有“创建者插件”字段，工具执行时能�
 默认配置（chat-only preset + 空 allowTools）下，机器人会话只能聊天：没有文件、命令、网络搜索、
 子 agent、发文件、审批；代价是这些能力全部不可用，也不能用它运营账号。
 
+## 常见问题
+
+### 安装时报 `ERR_PNPM_EPERM rename ... dsh-bot-sandbox_tmp_... -> dsh-bot-sandbox`
+
+原因：之前用 `link:` / 本机路径装过本插件，`profiles\desktop\node_modules\dsh-bot-sandbox`
+是一个 junction（目录链接）。pnpm 把新包解压到临时目录后，无法用 rename 覆盖一个已存在的
+junction，于是报 EPERM。
+
+处理：
+
+```powershell
+# 1. 完全退出 DSH（托盘退出）
+# 2. 只删除链接，不会动你的源码目录
+cmd /c rmdir "C:\Users\lenovo\.dsh\profiles\desktop\node_modules\dsh-bot-sandbox"
+
+# 3. 清理可能的临时目录
+Get-ChildItem "C:\Users\lenovo\.dsh\profiles\desktop\node_modules" -Filter "dsh-bot-sandbox_tmp_*" -Force |
+  Remove-Item -Recurse -Force
+
+# 4. 确认真实源码还在
+Test-Path "C:\Users\lenovo\Documents\deepseek-harness\default-workspace\dsh-bot-sandbox\package.json"
+```
+
+然后重新打开 DSH，从插件页安装 URL 即可。以后固定用一种安装方式（URL 或 link），不要混用。
+
+### 面板显示 HTTP 404
+
+说明宿主半个插件没有成功 apply。先看 `%TEMP%\bot-sandbox-boot.log`：
+
+- 没有 `apply ...` 行 → 插件没有加载（检查 bundle 是否启用、重启）；
+- 有 `abort: root unresolved` → 解析不到 profile，检查 `DSH_PROFILE_DIR` / `DSH_HOME`；
+- 有 `apply ...` 但路由仍 404 → 看 DSH 控制台里 `[bot-sandbox]` 的报错。
+
+### 报 `working-directory: directory does not exist`
+
+`0.3.4` 之前不会自动创建 `<DSH_HOME>/untrusted-bots/<target>`。升级到最新版，或手动执行：
+
+```powershell
+New-Item -ItemType Directory -Force "C:\Users\lenovo\.dsh\untrusted-bots\qqbot" | Out-Null
+```
+
+### 旧 QQ 会话不受限制
+
+沙箱只对「钉 cwd 之后创建」的会话生效；在对应 QQ 聊天里发 `/new` 后重试。
+
 ## 撤销
 
 1. 把 backups 里的 `cordis.patch.yml.bak.*` 恢复，或手动删掉目标行里的 `cwd`/`preset`；
